@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Yearly Target Tracker</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎯</text></svg>">
+<style>
+  :root {
+    --bg: #0a0a0a;
+    --panel: #161616;
+    --panel-border: #2a2a2a;
+    --fg: #f2f2f2;
+    --fg-dim: #9a9a9a;
+    --track: #262626;
+    --fill-a: #4a4a4a;
+    --fill-b: #eaeaea;
+    --radius: 22px;
+    --radius-sm: 12px;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    height: 100%;
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  #app {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4vh 4vw;
+    position: relative;
+  }
+  .card {
+    width: min(960px, 100%);
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    border-radius: var(--radius);
+    padding: 6vh 6vw;
+    text-align: center;
+    box-shadow: 0 24px 70px rgba(0,0,0,0.55);
+    position: relative;
+  }
+  .label {
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: var(--fg-dim);
+    font-size: clamp(12px, 1.6vw, 18px);
+    margin-bottom: 1.4vh;
+    font-weight: 600;
+  }
+  .percent {
+    font-size: clamp(56px, 12vw, 150px);
+    font-weight: 700;
+    line-height: 1;
+    margin: 0.1em 0 0.2em;
+    letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums;
+  }
+  .bar-track {
+    width: 100%;
+    height: clamp(14px, 2.4vw, 28px);
+    background: var(--track);
+    border-radius: 999px;
+    overflow: hidden;
+    margin: 3vh 0 2.2vh;
+    border: 1px solid var(--panel-border);
+  }
+  .bar-fill {
+    height: 100%;
+    width: 0%;
+    border-radius: 999px;
+    background: linear-gradient(90deg, var(--fill-a), var(--fill-b));
+    transition: width 1.1s cubic-bezier(.4,0,.2,1);
+  }
+  .figures {
+    display: flex;
+    justify-content: space-between;
+    color: var(--fg-dim);
+    font-size: clamp(13px, 1.6vw, 19px);
+    flex-wrap: wrap;
+    gap: 8px 18px;
+  }
+  .figures b { color: var(--fg); font-weight: 600; }
+  .banner {
+    margin-top: 3vh;
+    padding: 1.4vh 2.4vw;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--panel-border);
+    background: #1f1f1f;
+    display: none;
+  }
+  .banner.show { display: inline-block; }
+  .banner-line1 {
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    font-size: clamp(16px, 2vw, 22px);
+  }
+  .banner-line2 {
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    font-size: clamp(13px, 1.6vw, 18px);
+    color: var(--fg-dim);
+    margin-top: 0.3em;
+  }
+  .updated {
+    position: absolute;
+    bottom: 14px;
+    right: 20px;
+    font-size: 11px;
+    color: var(--fg-dim);
+  }
+  .status-dot {
+    position: absolute;
+    bottom: 16px;
+    left: 20px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #3a3a3a;
+  }
+  .status-dot.ok { background: #6a6a6a; }
+  .status-dot.error { background: #7a3a3a; }
+  #confetti-canvas { position: fixed; inset: 0; pointer-events: none; z-index: 40; }
+
+  .plane-overlay {
+    position: fixed;
+    top: 10%;
+    left: -320px;
+    width: 300px;
+    height: 90px;
+    pointer-events: none;
+    z-index: 45;
+    opacity: 0;
+  }
+  .plane-overlay.flying { animation: planeFly 7s linear; }
+  @keyframes planeFly {
+    0%   { transform: translate(0, 0); opacity: 0; }
+    6%   { opacity: 1; }
+    50%  { transform: translate(50vw, -22px); }
+    94%  { opacity: 1; }
+    100% { transform: translate(calc(100vw + 320px), 0); opacity: 0; }
+  }
+  .flag-group {
+    transform-box: fill-box;
+    transform-origin: 100% 50%;
+    animation: flagWave 0.5s ease-in-out infinite;
+  }
+  @keyframes flagWave {
+    0%, 100% { transform: skewY(5deg) scaleX(1); }
+    50%      { transform: skewY(-5deg) scaleX(0.95); }
+  }
+
+  .gondola-overlay {
+    position: fixed;
+    bottom: 6%;
+    left: -380px;
+    width: 360px;
+    height: 120px;
+    pointer-events: none;
+    z-index: 46;
+    opacity: 0;
+  }
+  .gondola-overlay.flying { animation: gondolaFly 9s linear; }
+  @keyframes gondolaFly {
+    0%   { transform: translate(0, 0); opacity: 0; }
+    6%   { opacity: 1; }
+    94%  { opacity: 1; }
+    100% { transform: translate(calc(100vw + 380px), 0); opacity: 0; }
+  }
+  .dance-item {
+    transform-box: fill-box;
+    transform-origin: 50% 100%;
+    animation: dance 0.6s ease-in-out infinite;
+  }
+  @keyframes dance {
+    0%, 100% { transform: translateY(0) rotate(0deg); }
+    25%      { transform: translateY(-6px) rotate(-10deg); }
+    50%      { transform: translateY(0) rotate(0deg); }
+    75%      { transform: translateY(-4px) rotate(10deg); }
+  }
+  .flip-inner { width: 100%; height: 100%; }
+  .flip-inner.flipped { transform: scaleX(-1); }
+</style>
+</head>
+<body>
+<div id="app">
+  <canvas id="confetti-canvas"></canvas>
+
+  <div class="plane-overlay" id="planeOverlay">
+   <div class="flip-inner" id="planeInner">
+    <svg class="plane-svg" viewBox="0 0 300 90" xmlns="http://www.w3.org/2000/svg">
+      <line x1="70" y1="40" x2="130" y2="40" stroke="#8a8a85" stroke-width="1.5"/>
+      <g class="flag-group">
+        <rect x="10" y="25" width="36" height="30" fill="#DA291C"/>
+        <rect x="46" y="25" width="24" height="30" fill="#046A38"/>
+        <circle cx="46" cy="40" r="6" fill="#f2d024"/>
+      </g>
+      <polygon points="128,40 148,15 160,40" fill="#cfcfcf" stroke="#2a2a2a" stroke-width="1.5"/>
+      <polygon points="172,40 198,8 215,12 196,40" fill="#d6d6d6" stroke="#2a2a2a" stroke-width="1.5"/>
+      <polygon points="172,40 198,72 215,68 196,40" fill="#d6d6d6" stroke="#2a2a2a" stroke-width="1.5"/>
+      <ellipse cx="185" cy="40" rx="55" ry="13" fill="#e8e8e8" stroke="#2a2a2a" stroke-width="2"/>
+      <ellipse cx="226" cy="36" rx="7" ry="5" fill="#2a2a2a" opacity="0.6"/>
+    </svg>
+   </div>
+  </div>
+
+  <div class="gondola-overlay" id="gondolaOverlay">
+   <div class="flip-inner" id="gondolaInner">
+    <svg class="gondola-svg" viewBox="0 0 340 120" xmlns="http://www.w3.org/2000/svg">
+      <rect x="210" y="20" width="80" height="9" rx="4" fill="#D98E04"/>
+      <rect x="215" y="27" width="70" height="42" rx="10" fill="#FFC72C" stroke="#2a2a2a" stroke-width="1.5"/>
+      <rect x="225" y="36" width="18" height="16" rx="3" fill="#eaeaea"/>
+      <rect x="250" y="36" width="18" height="16" rx="3" fill="#eaeaea"/>
+      <circle cx="235" cy="70" r="7" fill="#2a2a2a"/>
+      <circle cx="265" cy="70" r="7" fill="#2a2a2a"/>
+      <line x1="215" y1="58" x2="150" y2="72" stroke="#8a8a85" stroke-width="1.5"/>
+      <circle cx="75" cy="100" r="8" fill="#2a2a2a"/>
+      <circle cx="135" cy="100" r="8" fill="#2a2a2a"/>
+      <rect x="58" y="70" width="92" height="26" rx="6" fill="#3a3a3a" stroke="#2a2a2a" stroke-width="1.5"/>
+      <line x1="40" y1="108" x2="300" y2="108" stroke="#5f5e5a" stroke-width="3"/>
+      <g class="dance-item" style="animation-delay:0s">
+        <polygon points="70,48 82,48 76,62" fill="#eaeaea"/>
+        <line x1="76" y1="62" x2="76" y2="70" stroke="#eaeaea" stroke-width="2"/>
+        <ellipse cx="76" cy="71" rx="6" ry="2" fill="#eaeaea"/>
+      </g>
+      <g class="dance-item" style="animation-delay:0.15s">
+        <rect x="92" y="40" width="10" height="30" rx="2" fill="#BA7517"/>
+        <rect x="95" y="32" width="4" height="10" fill="#BA7517"/>
+        <rect x="94" y="29" width="6" height="4" fill="#5f5e5a"/>
+      </g>
+      <g class="dance-item" style="animation-delay:0.3s">
+        <polygon points="108,48 120,48 114,62" fill="#eaeaea"/>
+        <line x1="114" y1="62" x2="114" y2="70" stroke="#eaeaea" stroke-width="2"/>
+        <ellipse cx="114" cy="71" rx="6" ry="2" fill="#eaeaea"/>
+      </g>
+      <g class="dance-item" style="animation-delay:0.45s">
+        <rect x="128" y="40" width="10" height="30" rx="2" fill="#BA7517"/>
+        <rect x="131" y="32" width="4" height="10" fill="#BA7517"/>
+        <rect x="130" y="29" width="6" height="4" fill="#5f5e5a"/>
+      </g>
+    </svg>
+   </div>
+  </div>
+
+  <div class="card">
+    <div class="status-dot" id="statusDot" title="Connection status"></div>
+    <div class="label" id="labelText">Loading&hellip;</div>
+    <div class="percent" id="percentText">&mdash;</div>
+    <div class="bar-track"><div class="bar-fill" id="barFill"></div></div>
+    <div class="figures">
+      <span>Current: <b id="currentText">&mdash;</b></span>
+      <span>Remaining: <b id="remainingText">&mdash;</b></span>
+      <span>Target: <b id="targetText">&mdash;</b></span>
+    </div>
+    <div class="banner" id="banner">
+      <div class="banner-line1">ÅRSBUDGET SLAGEN!!!</div>
+      <div class="banner-line2">LISSABON HERE WE COME!</div>
+    </div>
+    <div class="updated" id="updatedText"></div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script>
+  // ---- CONFIGURE THIS ----
+  // Google Sheets: File > Share > Publish to web > pick the specific sheet/tab > CSV > Publish.
+  // Paste the resulting link below.
+const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRjUcH2OzBI4t0csWB3uONBwjQ21Un88eXHtRhMLIoIo9U_MZrPLju9MDQO4a2HWun5veCb5tq8XR_Z/pub?gid=0&single=true&output=csv";
+  const POLL_MS = 30000; // 30 seconds
+  // Expected sheet layout — row 1 headers, row 2 values:
+  // label              | current   | target    | threshold | unit
+  // FY2026 Revenue OOSE| 390000000 | 403975000 | 403975000 | kr
+  // ------------------------
+
+  const el = {
+    label: document.getElementById('labelText'),
+    percent: document.getElementById('percentText'),
+    bar: document.getElementById('barFill'),
+    current: document.getElementById('currentText'),
+    remaining: document.getElementById('remainingText'),
+    target: document.getElementById('targetText'),
+    banner: document.getElementById('banner'),
+    updated: document.getElementById('updatedText'),
+    statusDot: document.getElementById('statusDot'),
+  };
+
+  function parseNum(v) {
+    if (typeof v !== 'string') return parseFloat(v);
+    return parseFloat(v.replace(/[\s\u00A0]/g, '').replace(',', '.'));
+  }
+
+  function fmtNum(n, unit) {
+    if (typeof n !== 'number' || isNaN(n)) return '\u2014';
+    const s = n.toLocaleString('sv-SE', { maximumFractionDigits: 1 });
+    return unit ? s + ' ' + unit : s;
+  }
+
+  // ---- Continuous confetti while target is reached ----
+  const confettiCanvas = document.getElementById('confetti-canvas');
+  const confettiCtx = confettiCanvas.getContext('2d');
+  const confettiColors = ['#ffffff', '#d4d4d4', '#9a9a9a', '#eaeaea', '#6a6a6a'];
+  let confettiActive = false;
+  let confettiParticles = [];
+  let confettiRAF = null;
+
+  function resizeConfettiCanvas() {
+    confettiCanvas.width = window.innerWidth;
+    confettiCanvas.height = window.innerHeight;
+  }
+  resizeConfettiCanvas();
+  window.addEventListener('resize', resizeConfettiCanvas);
+
+  function spawnConfettiParticle() {
+    return {
+      x: Math.random() * confettiCanvas.width,
+      y: -20,
+      vy: 1.5 + Math.random() * 3,
+      vx: -1 + Math.random() * 2,
+      size: 4 + Math.random() * 7,
+      color: confettiColors[Math.floor(Math.random() * confettiColors.length)],
+      rotation: Math.random() * 360,
+      vr: -6 + Math.random() * 12,
+    };
+  }
+
+  function confettiTick() {
+    confettiCtx.clearRect(0, 0, confettiCanvas.width, confettiCanvas.height);
+    if (confettiActive && Math.random() < 0.25) {
+      confettiParticles.push(spawnConfettiParticle());
+    }
+    confettiParticles = confettiParticles.filter((p) => p.y < confettiCanvas.height + 30);
+    confettiParticles.forEach((p) => {
+      p.x += p.vx; p.y += p.vy; p.rotation += p.vr;
+      confettiCtx.save();
+      confettiCtx.translate(p.x, p.y);
+      confettiCtx.rotate((p.rotation * Math.PI) / 180);
+      confettiCtx.fillStyle = p.color;
+      confettiCtx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size);
+      confettiCtx.restore();
+    });
+    if (confettiActive || confettiParticles.length > 0) {
+      confettiRAF = requestAnimationFrame(confettiTick);
+    } else {
+      confettiRAF = null;
+    }
+  }
+
+  function startConfetti() {
+    if (confettiActive) return;
+    confettiActive = true;
+    if (!confettiRAF) confettiTick();
+  }
+
+  function stopConfetti() {
+    confettiActive = false;
+  }
+
+  // ---- Plane flyover while target is reached ----
+  const planeOverlay = document.getElementById('planeOverlay');
+  const planeInner = document.getElementById('planeInner');
+  const PLANE_REPEAT_MS = 15000;
+  let planeInterval = null;
+
+  function triggerPlaneFlyover() {
+    const reverse = Math.random() < 0.5;
+    planeOverlay.classList.remove('flying');
+    void planeOverlay.offsetWidth; // force reflow so the animation restarts
+    planeOverlay.style.animationDirection = reverse ? 'reverse' : 'normal';
+    planeInner.classList.toggle('flipped', reverse);
+    planeOverlay.classList.add('flying');
+  }
+
+  function startPlaneLoop() {
+    if (planeInterval) return;
+    triggerPlaneFlyover();
+    planeInterval = setInterval(triggerPlaneFlyover, PLANE_REPEAT_MS);
+  }
+
+  function stopPlaneLoop() {
+    if (planeInterval) {
+      clearInterval(planeInterval);
+      planeInterval = null;
+    }
+  }
+
+  // ---- Gondola + trailer flyover while target is reached ----
+  const gondolaOverlay = document.getElementById('gondolaOverlay');
+  const gondolaInner = document.getElementById('gondolaInner');
+  const GONDOLA_REPEAT_MS = 20000;
+  let gondolaInterval = null;
+  let gondolaStartTimeout = null;
+
+  function triggerGondolaFlyover() {
+    const reverse = Math.random() < 0.5;
+    gondolaOverlay.classList.remove('flying');
+    void gondolaOverlay.offsetWidth; // force reflow so the animation restarts
+    gondolaOverlay.style.animationDirection = reverse ? 'reverse' : 'normal';
+    gondolaInner.classList.toggle('flipped', reverse);
+    gondolaOverlay.classList.add('flying');
+  }
+
+  function startGondolaLoop() {
+    if (gondolaInterval || gondolaStartTimeout) return;
+    gondolaStartTimeout = setTimeout(function () {
+      triggerGondolaFlyover();
+      gondolaInterval = setInterval(triggerGondolaFlyover, GONDOLA_REPEAT_MS);
+    }, 4000); // staggered so it doesn't launch at the exact same moment as the plane
+  }
+
+  function stopGondolaLoop() {
+    if (gondolaStartTimeout) {
+      clearTimeout(gondolaStartTimeout);
+      gondolaStartTimeout = null;
+    }
+    if (gondolaInterval) {
+      clearInterval(gondolaInterval);
+      gondolaInterval = null;
+    }
+  }
+
+  function render(row) {
+    const label = (row.label || 'Target progress').trim();
+    const current = parseNum(row.current);
+    const target = parseNum(row.target);
+    const threshold = row.threshold !== undefined && row.threshold !== '' ? parseNum(row.threshold) : null;
+    const unit = (row.unit || '').trim();
+
+    el.label.textContent = label;
+    const pct = target > 0 ? Math.max(0, Math.min(100, (current / target) * 100)) : 0;
+    el.percent.textContent = Math.round(pct) + '%';
+    el.bar.style.width = pct + '%';
+    el.current.textContent = fmtNum(current, unit);
+    el.target.textContent = fmtNum(target, unit);
+    const remaining = target > 0 && !isNaN(current) ? Math.max(0, target - current) : NaN;
+    el.remaining.textContent = fmtNum(remaining, unit);
+    el.updated.textContent = 'Checked ' + new Date().toLocaleTimeString('sv-SE');
+
+    const reached = threshold !== null && !isNaN(current) && current >= threshold;
+    el.banner.classList.toggle('show', reached);
+
+    if (reached) {
+      startConfetti();
+      startPlaneLoop();
+      startGondolaLoop();
+    } else {
+      stopConfetti();
+      stopPlaneLoop();
+      stopGondolaLoop();
+    }
+  }
+
+  function fetchData() {
+    Papa.parse(CSV_URL, {
+      download: true,
+      header: true,
+      skipEmptyLines: true,
+      complete: function (results) {
+        if (results.data && results.data.length > 0) {
+          render(results.data[0]);
+          el.statusDot.className = 'status-dot ok';
+        } else {
+          el.statusDot.className = 'status-dot error';
+        }
+      },
+      error: function () {
+        el.statusDot.className = 'status-dot error';
+      },
+    });
+  }
+
+  fetchData();
+  setInterval(fetchData, POLL_MS);
+</script>
+</body>
+</html>
